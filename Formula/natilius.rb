@@ -9,7 +9,7 @@ class Natilius < Formula
   desc "Automated one-click Mac developer environment setup"
   homepage "https://github.com/vincentkoc/natilius"
   url "https://github.com/vincentkoc/natilius/archive/refs/tags/v1.4.0.tar.gz"
-  sha256 "4f6eee6c1c82abb9b07d66a953f1a8a3c85813628e6e069f9f637db3aeae56ee"
+  sha256 "bbad91470a0c8252642afdc4e81470c4abb179d3ce02cdb97bc31386fa2fe409"
   license "GPL-3.0-or-later"
   head "https://github.com/vincentkoc/natilius.git", branch: "main"
 
