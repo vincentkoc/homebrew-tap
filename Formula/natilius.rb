@@ -13,11 +13,9 @@ class Natilius < Formula
   license "GPL-3.0-or-later"
   head "https://github.com/vincentkoc/natilius.git", branch: "main"
 
-  # No dependencies required - natilius handles its own deps
-
   def install
-    # Install main script
-    bin.install "natilius.sh" => "natilius"
+    # Install main script to libexec
+    libexec.install "natilius.sh"
 
     # Install library files
     (libexec/"lib").install Dir["lib/*.sh"]
@@ -35,21 +33,16 @@ class Natilius < Formula
     # Install example config
     (share/"natilius").install ".natiliusrc.example"
 
-    # Create wrapper that sets NATILIUS_HOME
-    (bin/"natilius").unlink
+    # Create wrapper script that sets NATILIUS_HOME
     (bin/"natilius").write <<~EOS
       #!/bin/bash
       export NATILIUS_HOME="#{libexec}"
       exec "#{libexec}/natilius.sh" "$@"
     EOS
     (bin/"natilius").chmod 0755
-
-    # Install main script to libexec
-    libexec.install "natilius.sh"
   end
 
   def post_install
-    # Copy example config to user home if not exists
     user_config = "#{ENV["HOME"]}/.natiliusrc"
     unless File.exist?(user_config)
       ohai "Creating default config at ~/.natiliusrc"
