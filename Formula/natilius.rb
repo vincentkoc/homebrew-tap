@@ -8,8 +8,8 @@
 class Natilius < Formula
   desc "Automated one-click Mac developer environment setup"
   homepage "https://github.com/vincentkoc/natilius"
-  url "https://github.com/vincentkoc/natilius/archive/refs/tags/v1.4.2.tar.gz"
-  sha256 "425f3ac6bd081fb1f1c4b11f25bdfee322914f77350d09ad617112162603cf75"
+  url "https://github.com/vincentkoc/natilius/archive/refs/tags/v1.4.3.tar.gz"
+  sha256 "b4288c5189189cda0fed1ad6838d79a009514274aa0618659da53c13f18227c9"
   license "GPL-3.0-or-later"
   head "https://github.com/vincentkoc/natilius.git", branch: "main"
 
@@ -66,7 +66,7 @@ class Natilius < Formula
         natilius --profile minimal   # Quick setup, essentials only
         natilius --profile devops    # Kubernetes, Terraform, cloud tools
         natilius --profile developer # Full dev environment
-        natilius --profile clawdbot  # AI bot (moltbot) setup
+        natilius --profile clawdbot  # AI agent (moltbot) with Mackup restore
     EOS
   end
 
