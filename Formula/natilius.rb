@@ -10,6 +10,7 @@ class Natilius < Formula
   homepage "https://github.com/vincentkoc/natilius"
   url "https://github.com/vincentkoc/natilius/archive/refs/tags/v1.4.3.tar.gz"
   sha256 "b4288c5189189cda0fed1ad6838d79a009514274aa0618659da53c13f18227c9"
+  version "1.4.3"
   license "GPL-3.0-or-later"
   head "https://github.com/vincentkoc/natilius.git", branch: "main"
 
