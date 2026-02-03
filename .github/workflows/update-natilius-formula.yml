@@ -58,9 +58,27 @@ jobs:
           CHECKSUM = os.environ["CHECKSUM"]
           url = f"https://github.com/vincentkoc/natilius/archive/refs/tags/{TAG}.tar.gz"
 
-          text = re.sub(r'url\\s+".+"', f'  url "{url}"', text, count=1)
-          text = re.sub(r'sha256\\s+"[0-9a-f]+"', f'  sha256 "{CHECKSUM}"', text, count=1)
-          text = re.sub(r'version\\s+"[^"]+"', f'  version "{VERSION}"', text, count=1)
+          text = re.sub(
+              r'^\\s*url\\s+".+"',
+              f'  url "{url}"',
+              text,
+              count=1,
+              flags=re.MULTILINE,
+          )
+          text = re.sub(
+              r'^\\s*sha256\\s+"[0-9a-f]+"',
+              f'  sha256 "{CHECKSUM}"',
+              text,
+              count=1,
+              flags=re.MULTILINE,
+          )
+          text = re.sub(
+              r'^\\s*version\\s+"[^"]+"',
+              f'  version "{VERSION}"',
+              text,
+              count=1,
+              flags=re.MULTILINE,
+          )
 
           path.write_text(text)
           PY
