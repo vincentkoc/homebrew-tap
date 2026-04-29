@@ -4,7 +4,6 @@ class Notcrawl < Formula
   url "https://github.com/vincentkoc/notcrawl/archive/refs/tags/v0.3.5.tar.gz"
   sha256 "4a5ce1606006a96c59a27b04cc69ed6d081befecd59029f69941960d6f1113dc"
   license "MIT"
-  version "0.3.5"
 
   depends_on "go" => :build
 
