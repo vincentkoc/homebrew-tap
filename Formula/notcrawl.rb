@@ -1,8 +1,8 @@
 class Notcrawl < Formula
   desc "Local-first Notion crawler into SQLite and normalized Markdown"
   homepage "https://github.com/vincentkoc/notcrawl"
-  url "https://github.com/vincentkoc/notcrawl/archive/refs/tags/v0.3.5.tar.gz"
-  sha256 "4a5ce1606006a96c59a27b04cc69ed6d081befecd59029f69941960d6f1113dc"
+  url "https://github.com/vincentkoc/notcrawl/archive/refs/tags/v0.3.6.tar.gz"
+  sha256 "351a65a3c78c770607c370efce87794b8a5e3b80b2366f8e58619c7dd2b2ae56"
   license "MIT"
 
   depends_on "go" => :build
