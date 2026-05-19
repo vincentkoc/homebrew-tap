@@ -1,10 +1,10 @@
 class Crawlbar < Formula
   desc "macOS menu bar control plane for local-first crawler CLIs"
-  homepage "https://github.com/vincentkoc/CrawlBar"
-  url "https://github.com/vincentkoc/CrawlBar/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "3825d0e2497b6bd3eb688fe8eeba26e9875180d988f0954b34ea15c5b0f48e6e"
+  homepage "https://github.com/openclaw/crawlbar"
+  url "https://github.com/openclaw/crawlbar/archive/refs/tags/v0.2.0.tar.gz"
+  sha256 "a945ac57178f143173b00512135eb30b8b69bf31b680f805fcd2805ede81421e"
   license "MIT"
-  head "https://github.com/vincentkoc/CrawlBar.git", branch: "main"
+  head "https://github.com/openclaw/crawlbar.git", branch: "main"
 
   depends_on macos: :sonoma
   uses_from_macos "swift" => :build
@@ -41,7 +41,7 @@ class Crawlbar < Formula
         <key>CFBundlePackageType</key>
         <string>APPL</string>
         <key>CFBundleShortVersionString</key>
-        <string>0.1.0</string>
+        <string>0.2.0</string>
         <key>CFBundleVersion</key>
         <string>1</string>
         <key>LSUIElement</key>
