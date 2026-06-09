@@ -1,8 +1,8 @@
 class Crawlbar < Formula
   desc "macOS menu bar control plane for local-first crawler CLIs"
   homepage "https://github.com/openclaw/crawlbar"
-  url "https://github.com/openclaw/crawlbar/archive/refs/tags/v0.2.0.tar.gz"
-  sha256 "a945ac57178f143173b00512135eb30b8b69bf31b680f805fcd2805ede81421e"
+  url "https://github.com/openclaw/crawlbar/archive/refs/tags/v0.3.0.tar.gz"
+  sha256 "7737c08c4341b84da2200fcff08e49dd741943c9d17ce11030f059f8140deebb"
   license "MIT"
   head "https://github.com/openclaw/crawlbar.git", branch: "main"
 
@@ -15,6 +15,7 @@ class Crawlbar < Formula
 
     app_binary = Pathname(Dir[".build/**/release/CrawlBar"].first)
     cli_binary = Pathname(Dir[".build/**/release/crawlbarctl"].first)
+    resource_bundle = Pathname(Dir[".build/**/release/CrawlBar_CrawlBar.bundle"].first)
 
     app = prefix/"CrawlBar.app"
     contents = app/"Contents"
@@ -23,6 +24,7 @@ class Crawlbar < Formula
     resources = contents/"Resources"
     macos.install app_binary
     helpers.install cli_binary => "crawlbar"
+    app.install resource_bundle
     bin.write_exec_script helpers/"crawlbar"
     system "Scripts/generate_app_icon.swift", resources/"CrawlBar.icns"
     (contents/"Info.plist").write <<~PLIST
@@ -41,7 +43,7 @@ class Crawlbar < Formula
         <key>CFBundlePackageType</key>
         <string>APPL</string>
         <key>CFBundleShortVersionString</key>
-        <string>0.2.0</string>
+        <string>0.3.0</string>
         <key>CFBundleVersion</key>
         <string>1</string>
         <key>LSUIElement</key>
@@ -65,5 +67,6 @@ class Crawlbar < Formula
 
   test do
     assert_match "crawlbar commands:", shell_output("#{bin}/crawlbar --help")
+    assert_path_exists prefix/"CrawlBar.app/CrawlBar_CrawlBar.bundle/google.png"
   end
 end
