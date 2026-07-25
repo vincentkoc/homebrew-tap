@@ -4,8 +4,8 @@
 class Agentrinse < Formula
   desc "Fail-closed cleanup for developer agent state and Git worktrees"
   homepage "https://github.com/vincentkoc/agentrinse"
-  url "https://github.com/vincentkoc/agentrinse/releases/download/v0.3.0/agentrinse-0.3.0.tgz"
-  sha256 "f662a12025bffa7b82c35aa97f9279c613c2826cfe693aa6ae0088cb4bfbb51f"
+  url "https://github.com/vincentkoc/agentrinse/releases/download/v0.4.0/agentrinse-0.4.0.tgz"
+  sha256 "f8aec60bf9b49d2b37d23e159549f60cd8a95b60d9b5564ea61ef3a8aa47f293"
   license "MIT"
 
   depends_on "node"
