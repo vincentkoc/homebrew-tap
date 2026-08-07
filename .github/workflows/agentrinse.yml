@@ -1,0 +1,185 @@
+---
+name: AgentRinse Formula
+
+on:
+  pull_request:
+    paths:
+      - Formula/agentrinse.rb
+      - scripts/agentrinse-stateless-audit-smoke.mjs
+      - .github/workflows/agentrinse.yml
+  push:
+    branches:
+      - main
+    paths:
+      - Formula/agentrinse.rb
+      - scripts/agentrinse-stateless-audit-smoke.mjs
+      - .github/workflows/agentrinse.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agentrinse-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_INSTALL_CLEANUP: "1"
+  HOMEBREW_NO_AUTOREMOVE: "1"
+  HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: "1"
+  HOMEBREW_NO_INSTALL_UPGRADE: "1"
+  HOMEBREW_DEVELOPER: "1"
+  HOMEBREW_NO_ANALYTICS: "1"
+
+jobs:
+  audit:
+    name: Strict online audit
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - name: Check out tap
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require Apple silicon
+        run: test "$(uname -m)" = "arm64"
+
+      - name: Tap this checkout
+        run: brew tap vincentkoc/tap "$GITHUB_WORKSPACE"
+
+      - name: Audit formula
+        run: brew audit --strict --online vincentkoc/tap/agentrinse
+
+  clean-install:
+    name: Clean 0.7.0 install
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - name: Check out tap
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require Apple silicon
+        run: test "$(uname -m)" = "arm64"
+
+      - name: Tap this checkout
+        run: brew tap vincentkoc/tap "$GITHUB_WORKSPACE"
+
+      - name: Install and test 0.7.0
+        run: |
+          if brew list --formula --versions agentrinse >/dev/null 2>&1; then
+            echo "agentrinse was already installed on the fresh runner" >&2
+            exit 1
+          fi
+          brew install --formula vincentkoc/tap/agentrinse
+          prefix="$(brew --prefix agentrinse)"
+          test "$("$prefix/bin/agentrinse" --version)" = "0.7.0"
+          brew test vincentkoc/tap/agentrinse
+
+  upgrade:
+    name: Upgrade 0.6.0 to 0.7.0
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - name: Check out tap
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require Apple silicon
+        run: test "$(uname -m)" = "arm64"
+
+      - name: Preserve exact formula revisions
+        run: |
+          git show c5d01815b1b13344d64b527a5a73d9220c2fbf9f:Formula/agentrinse.rb \
+            > "$RUNNER_TEMP/agentrinse-0.6.0.rb"
+          cp Formula/agentrinse.rb "$RUNNER_TEMP/agentrinse-0.7.0.rb"
+
+      - name: Tap this checkout
+        run: brew tap vincentkoc/tap "$GITHUB_WORKSPACE"
+
+      - name: Install exact 0.6.0
+        run: |
+          if brew list --formula --versions agentrinse >/dev/null 2>&1; then
+            echo "agentrinse was already installed on the fresh runner" >&2
+            exit 1
+          fi
+          tap_path="$(brew --repository vincentkoc/tap)"
+          install -m 0644 "$RUNNER_TEMP/agentrinse-0.6.0.rb" "$tap_path/Formula/agentrinse.rb"
+          grep -Fq "/v0.6.0/agentrinse-0.6.0.tgz" "$tap_path/Formula/agentrinse.rb"
+          grep -Fq "da60d1672bbd4dbca550ac1d9b2e92c5aa30357ce414bf46c95d26bea1aaaf90" \
+            "$tap_path/Formula/agentrinse.rb"
+          brew install --formula vincentkoc/tap/agentrinse
+          old_prefix="$(brew --prefix agentrinse)"
+          old_keg="$(/bin/realpath "$old_prefix")"
+          test "${old_keg##*/}" = "0.6.0"
+          test "$("$old_prefix/bin/agentrinse" --version)" = "0.6.0"
+          printf '%s\n' "$old_keg" > "$RUNNER_TEMP/agentrinse-old-keg"
+
+      - name: Upgrade to exact 0.7.0 and test
+        run: |
+          tap_path="$(brew --repository vincentkoc/tap)"
+          install -m 0644 "$RUNNER_TEMP/agentrinse-0.7.0.rb" "$tap_path/Formula/agentrinse.rb"
+          grep -Fq "/v0.7.0/agentrinse-0.7.0.tgz" "$tap_path/Formula/agentrinse.rb"
+          grep -Fq "67c4e0d3e7c006c4399a3b219c8de07672d869772adbebc7673b2aac900132a9" \
+            "$tap_path/Formula/agentrinse.rb"
+          brew upgrade --formula vincentkoc/tap/agentrinse
+          new_prefix="$(brew --prefix agentrinse)"
+          new_keg="$(/bin/realpath "$new_prefix")"
+          test "${new_keg##*/}" = "0.7.0"
+          test "$new_keg" != "$(cat "$RUNNER_TEMP/agentrinse-old-keg")"
+          test "$("$new_prefix/bin/agentrinse" --version)" = "0.7.0"
+          brew test vincentkoc/tap/agentrinse
+
+  stateless-keg:
+    name: Installed-keg stateless proof
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - name: Check out tap
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require Apple silicon
+        run: test "$(uname -m)" = "arm64"
+
+      - name: Tap this checkout
+        run: brew tap vincentkoc/tap "$GITHUB_WORKSPACE"
+
+      - name: Install 0.7.0
+        run: |
+          brew install --formula vincentkoc/tap/agentrinse
+          prefix="$(brew --prefix agentrinse)"
+          test "$("$prefix/bin/agentrinse" --version)" = "0.7.0"
+
+      - name: Prove stateless provider audit
+        run: |
+          keg_prefix="$(brew --prefix agentrinse)"
+          node_bin="$(brew --prefix node)/bin/node"
+          proof="$("$node_bin" scripts/agentrinse-stateless-audit-smoke.mjs "$keg_prefix")"
+          "$node_bin" -e '
+            const proof = JSON.parse(process.argv[1]);
+            const exact = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+            if (proof.statelessAudit !== true) throw new Error("stateless audit proof missing");
+            if (!exact(proof.providers, ["copilot", "cursor", "opencode"])) {
+              throw new Error("unexpected provider proof");
+            }
+            if (!exact(proof.runtimeDenied, ["fs-write", "child-process", "addons", "net", "ffi"])) {
+              throw new Error("runtime did not deny the complete operation set");
+            }
+            if (!exact(proof.externalSandboxRequired, [])) {
+              throw new Error("Node permission model needs an external sandbox");
+            }
+            if (!exact(proof.trapBinaries, ["mo", "grok", "codex", "git", "docker", "sqlite3", "lsof"])) {
+              throw new Error("trap proof set changed");
+            }
+          ' "$proof"
+          printf '%s\n' "$proof"
