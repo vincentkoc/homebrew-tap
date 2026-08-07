@@ -1,11 +1,13 @@
 # frozen_string_literal: true
 
+require "json"
+
 # Homebrew formula for AgentRinse.
 class Agentrinse < Formula
   desc "Fail-closed cleanup for developer agent state and Git worktrees"
   homepage "https://github.com/vincentkoc/agentrinse"
-  url "https://github.com/vincentkoc/agentrinse/releases/download/v0.6.0/agentrinse-0.6.0.tgz"
-  sha256 "da60d1672bbd4dbca550ac1d9b2e92c5aa30357ce414bf46c95d26bea1aaaf90"
+  url "https://github.com/vincentkoc/agentrinse/releases/download/v0.7.0/agentrinse-0.7.0.tgz"
+  sha256 "67c4e0d3e7c006c4399a3b219c8de07672d869772adbebc7673b2aac900132a9"
   license "MIT"
 
   depends_on "node"
@@ -19,9 +21,59 @@ class Agentrinse < Formula
     assert_equal version.to_s, shell_output("#{bin}/agentrinse --version").strip
 
     home = testpath/"home"
-    (home/".codex/sessions").mkpath
-    output = shell_output("#{bin}/agentrinse audit --home #{home} --json")
-    assert_match '"command": "audit"', output
-    assert_match '"schemaVersion": 1', output
+    cursor = home/"Library/Application Support/Cursor"
+    copilot = home/".copilot"
+    opencode = home/".local/share/opencode"
+
+    (cursor/"User/workspaceStorage/workspace").mkpath
+    (cursor/"User/workspaceStorage/workspace/state.json").write("{}")
+    (cursor/"User/globalStorage").mkpath
+    (cursor/"User/globalStorage/state.vscdb").write("cursor")
+    (cursor/"logs").mkpath
+    (cursor/"logs/cursor.log").write("cursor")
+
+    (copilot/"session-state").mkpath
+    (copilot/"session-state/session.json").write("{}")
+    (copilot/"logs").mkpath
+    (copilot/"logs/copilot.log").write("copilot")
+
+    (opencode/"log").mkpath
+    (opencode/"log/opencode.log").write("opencode")
+    (opencode/"snapshot").mkpath
+    (opencode/"snapshot/object").write("snapshot")
+    (opencode/"opencode.db").write("opencode")
+
+    state_home = home/"forbidden-state"
+    ENV["XDG_STATE_HOME"] = state_home.to_s
+    output = shell_output(
+      "#{bin}/agentrinse audit --home #{home} " \
+      "--providers cursor,copilot,opencode --no-state --json",
+    )
+    envelope = JSON.parse(output)
+    assert_equal %w[
+      agentrinseVersion command completedAt data diagnostics schemaVersion startedAt status
+    ].sort, envelope.keys.sort
+    assert_equal 1, envelope.fetch("schemaVersion")
+    assert_equal "audit", envelope.fetch("command")
+    assert_equal version.to_s, envelope.fetch("agentrinseVersion")
+    assert_equal "ok", envelope.fetch("status")
+    assert_empty envelope.fetch("diagnostics")
+
+    report = envelope.fetch("data")
+    assert_equal %w[
+      auditId completedAt diagnostics findings home probes schemaVersion startedAt
+    ].sort, report.keys.sort
+    assert_equal 1, report.fetch("schemaVersion")
+    assert_equal home.to_s, report.fetch("home")
+    assert_empty report.fetch("diagnostics")
+    assert_equal %w[copilot cursor opencode], report.fetch("probes").map { |probe| probe.fetch("adapter") }
+    assert report.fetch("probes").all? { |probe| probe.fetch("status") == "available" }
+
+    findings = report.fetch("findings")
+    refute_empty findings
+    assert_equal %w[copilot cursor opencode],
+                 findings.map { |finding| finding.fetch("resource").fetch("adapter") }.uniq.sort
+    assert findings.all? { |finding| finding.fetch("candidateActions").empty? }
+    refute_path_exists state_home
   end
 end
