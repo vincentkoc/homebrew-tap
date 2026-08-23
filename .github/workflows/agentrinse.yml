@@ -54,7 +54,7 @@ jobs:
         run: brew audit --strict --online vincentkoc/tap/agentrinse
 
   clean-install:
-    name: Clean 0.8.0 install
+    name: Clean 0.8.1 install
     runs-on: macos-15
     timeout-minutes: 20
     steps:
@@ -70,7 +70,7 @@ jobs:
       - name: Tap this checkout
         run: brew tap vincentkoc/tap "$GITHUB_WORKSPACE"
 
-      - name: Install and test 0.8.0
+      - name: Install and test 0.8.1
         run: |
           if brew list --formula --versions agentrinse >/dev/null 2>&1; then
             echo "agentrinse was already installed on the fresh runner" >&2
@@ -78,11 +78,11 @@ jobs:
           fi
           brew install --formula vincentkoc/tap/agentrinse
           prefix="$(brew --prefix agentrinse)"
-          test "$("$prefix/bin/agentrinse" --version)" = "0.8.0"
+          test "$("$prefix/bin/agentrinse" --version)" = "0.8.1"
           brew test vincentkoc/tap/agentrinse
 
   upgrade:
-    name: Upgrade 0.7.0 to 0.8.0
+    name: Upgrade 0.8.0 to 0.8.1
     runs-on: macos-15
     timeout-minutes: 25
     steps:
@@ -97,44 +97,44 @@ jobs:
 
       - name: Preserve exact formula revisions
         run: |
-          git show b9c261e8b56adaeae523da17692e86ba5977bf98:Formula/agentrinse.rb \
-            > "$RUNNER_TEMP/agentrinse-0.7.0.rb"
-          cp Formula/agentrinse.rb "$RUNNER_TEMP/agentrinse-0.8.0.rb"
+          git show 4157e0834e7483b8aaab141c105c86e3a82824eb:Formula/agentrinse.rb \
+            > "$RUNNER_TEMP/agentrinse-0.8.0.rb"
+          cp Formula/agentrinse.rb "$RUNNER_TEMP/agentrinse-0.8.1.rb"
 
       - name: Tap this checkout
         run: brew tap vincentkoc/tap "$GITHUB_WORKSPACE"
 
-      - name: Install exact 0.7.0
+      - name: Install exact 0.8.0
         run: |
           if brew list --formula --versions agentrinse >/dev/null 2>&1; then
             echo "agentrinse was already installed on the fresh runner" >&2
             exit 1
           fi
           tap_path="$(brew --repository vincentkoc/tap)"
-          install -m 0644 "$RUNNER_TEMP/agentrinse-0.7.0.rb" "$tap_path/Formula/agentrinse.rb"
-          grep -Fq "/v0.7.0/agentrinse-0.7.0.tgz" "$tap_path/Formula/agentrinse.rb"
-          grep -Fq "67c4e0d3e7c006c4399a3b219c8de07672d869772adbebc7673b2aac900132a9" \
-            "$tap_path/Formula/agentrinse.rb"
-          brew install --formula vincentkoc/tap/agentrinse
-          old_prefix="$(brew --prefix agentrinse)"
-          old_keg="$(/bin/realpath "$old_prefix")"
-          test "${old_keg##*/}" = "0.7.0"
-          test "$("$old_prefix/bin/agentrinse" --version)" = "0.7.0"
-          printf '%s\n' "$old_keg" > "$RUNNER_TEMP/agentrinse-old-keg"
-
-      - name: Upgrade to exact 0.8.0 and test
-        run: |
-          tap_path="$(brew --repository vincentkoc/tap)"
           install -m 0644 "$RUNNER_TEMP/agentrinse-0.8.0.rb" "$tap_path/Formula/agentrinse.rb"
           grep -Fq "/v0.8.0/agentrinse-0.8.0.tgz" "$tap_path/Formula/agentrinse.rb"
           grep -Fq "5d3c42eab97dc94fd1b19bc774033b1a4af84baf992ba81251f8105acdee5781" \
             "$tap_path/Formula/agentrinse.rb"
+          brew install --formula vincentkoc/tap/agentrinse
+          old_prefix="$(brew --prefix agentrinse)"
+          old_keg="$(/bin/realpath "$old_prefix")"
+          test "${old_keg##*/}" = "0.8.0"
+          test "$("$old_prefix/bin/agentrinse" --version)" = "0.8.0"
+          printf '%s\n' "$old_keg" > "$RUNNER_TEMP/agentrinse-old-keg"
+
+      - name: Upgrade to exact 0.8.1 and test
+        run: |
+          tap_path="$(brew --repository vincentkoc/tap)"
+          install -m 0644 "$RUNNER_TEMP/agentrinse-0.8.1.rb" "$tap_path/Formula/agentrinse.rb"
+          grep -Fq "/v0.8.1/agentrinse-0.8.1.tgz" "$tap_path/Formula/agentrinse.rb"
+          grep -Fq "104fe77af68435e599c78cbf0944413bab2a10ec96a3abfec2a9b7aa65e82079" \
+            "$tap_path/Formula/agentrinse.rb"
           brew upgrade --formula vincentkoc/tap/agentrinse
           new_prefix="$(brew --prefix agentrinse)"
           new_keg="$(/bin/realpath "$new_prefix")"
-          test "${new_keg##*/}" = "0.8.0"
+          test "${new_keg##*/}" = "0.8.1"
           test "$new_keg" != "$(cat "$RUNNER_TEMP/agentrinse-old-keg")"
-          test "$("$new_prefix/bin/agentrinse" --version)" = "0.8.0"
+          test "$("$new_prefix/bin/agentrinse" --version)" = "0.8.1"
           brew test vincentkoc/tap/agentrinse
 
   stateless-keg:
@@ -154,11 +154,11 @@ jobs:
       - name: Tap this checkout
         run: brew tap vincentkoc/tap "$GITHUB_WORKSPACE"
 
-      - name: Install 0.8.0
+      - name: Install 0.8.1
         run: |
           brew install --formula vincentkoc/tap/agentrinse
           prefix="$(brew --prefix agentrinse)"
-          test "$("$prefix/bin/agentrinse" --version)" = "0.8.0"
+          test "$("$prefix/bin/agentrinse" --version)" = "0.8.1"
 
       - name: Prove stateless provider audit
         run: |
