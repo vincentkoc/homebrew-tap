@@ -9,10 +9,14 @@ class Agentrinse < Formula
   url "https://github.com/vincentkoc/agentrinse/releases/download/v0.8.2/agentrinse-0.8.2.tgz"
   sha256 "1c30fc4f77d0254aa9ed11cf364299263519a8b44ead17c99ce9f4cdd6296ce9"
   license "MIT"
+  revision 1
 
   depends_on "node"
 
   def install
+    # Keep npm on the declared Node toolchain when PATH contains another Node.
+    node = Formula["node"]
+    ENV.prepend_path "PATH", node.opt_bin
     system "npm", "install", *std_npm_args
     bin.install_symlink libexec.glob("bin/*")
   end

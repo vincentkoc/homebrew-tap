@@ -54,7 +54,7 @@ jobs:
         run: brew audit --strict --online vincentkoc/tap/agentrinse
 
   clean-install:
-    name: Clean 0.8.2 install
+    name: Clean 0.8.2_1 install
     runs-on: macos-15
     timeout-minutes: 20
     steps:
@@ -70,19 +70,73 @@ jobs:
       - name: Tap this checkout
         run: brew tap vincentkoc/tap "$GITHUB_WORKSPACE"
 
-      - name: Install and test 0.8.2
+      - name: Install and test 0.8.2_1
         run: |
           if brew list --formula --versions agentrinse >/dev/null 2>&1; then
             echo "agentrinse was already installed on the fresh runner" >&2
             exit 1
           fi
-          brew install --formula vincentkoc/tap/agentrinse
+          brew install --formula node
+          snapshot_homebrew() {
+            label="$1"
+            brew_prefix="$(brew --prefix)"
+            cellar="$(brew --cellar)"
+            node_prefix="$(brew --prefix node)"
+            {
+              printf 'node-prefix=%s\n' "$node_prefix"
+              printf 'node-keg=%s\n' "$(/bin/realpath "$node_prefix")"
+              for path in "$node_prefix/bin/node" "$brew_prefix/bin/node"; do
+                printf 'path=%s\n' "$path"
+                stat -f '%d:%i:%u:%g:%Lp:%l:%z:%m:%c' "$path"
+                printf 'realpath=%s\n' "$(/bin/realpath "$path")"
+                shasum -a 256 "$path"
+                readlink "$path" || true
+              done
+              path="$brew_prefix/opt/node"
+              printf 'path=%s\n' "$path"
+              stat -f '%d:%i:%u:%g:%Lp:%l:%z:%m:%c' "$path"
+              printf 'realpath=%s\n' "$(/bin/realpath "$path")"
+              readlink "$path"
+            } > "$RUNNER_TEMP/agentrinse-$label-node.txt"
+            find "$cellar" -mindepth 2 -maxdepth 2 -type d \
+              ! -path "$cellar/agentrinse/*" -print |
+              sed "s#^$cellar/##" |
+              LC_ALL=C sort > "$RUNNER_TEMP/agentrinse-$label-kegs.txt"
+            {
+              for root in bin sbin lib include share opt var/homebrew/linked; do
+                test ! -d "$brew_prefix/$root" ||
+                  find "$brew_prefix/$root" -type l -print
+              done
+            } | LC_ALL=C sort |
+              while IFS= read -r link; do
+                target="$(readlink "$link")"
+                case "$link:$target" in
+                  *agentrinse*) continue ;;
+                esac
+                printf '%s\t%s\n' "${link#"$brew_prefix"/}" "$target"
+              done > "$RUNNER_TEMP/agentrinse-$label-links.txt"
+          }
+
+          snapshot_homebrew before
+          brew install --formula --ignore-dependencies vincentkoc/tap/agentrinse
           prefix="$(brew --prefix agentrinse)"
+          keg="$(/bin/realpath "$prefix")"
+          test "${keg##*/}" = "0.8.2_1"
           test "$("$prefix/bin/agentrinse" --version)" = "0.8.2"
+          snapshot_homebrew after
+          diff -u \
+            "$RUNNER_TEMP/agentrinse-before-node.txt" \
+            "$RUNNER_TEMP/agentrinse-after-node.txt"
+          diff -u \
+            "$RUNNER_TEMP/agentrinse-before-kegs.txt" \
+            "$RUNNER_TEMP/agentrinse-after-kegs.txt"
+          diff -u \
+            "$RUNNER_TEMP/agentrinse-before-links.txt" \
+            "$RUNNER_TEMP/agentrinse-after-links.txt"
           brew test vincentkoc/tap/agentrinse
 
   upgrade:
-    name: Upgrade 0.8.1 to 0.8.2
+    name: Upgrade 0.8.1 to 0.8.2_1
     runs-on: macos-15
     timeout-minutes: 25
     steps:
@@ -129,16 +183,17 @@ jobs:
           grep -Fq "/v0.8.2/agentrinse-0.8.2.tgz" "$tap_path/Formula/agentrinse.rb"
           grep -Fq "1c30fc4f77d0254aa9ed11cf364299263519a8b44ead17c99ce9f4cdd6296ce9" \
             "$tap_path/Formula/agentrinse.rb"
+          grep -Fq "revision 1" "$tap_path/Formula/agentrinse.rb"
           brew upgrade --formula vincentkoc/tap/agentrinse
           new_prefix="$(brew --prefix agentrinse)"
           new_keg="$(/bin/realpath "$new_prefix")"
-          test "${new_keg##*/}" = "0.8.2"
+          test "${new_keg##*/}" = "0.8.2_1"
           test "$new_keg" != "$(cat "$RUNNER_TEMP/agentrinse-old-keg")"
           test "$("$new_prefix/bin/agentrinse" --version)" = "0.8.2"
           brew test vincentkoc/tap/agentrinse
 
   historical-sidecar-upgrade:
-    name: Upgrade 0.6.0 plan sidecar to 0.8.2
+    name: Upgrade 0.6.0 plan sidecar to 0.8.2_1
     runs-on: macos-15
     timeout-minutes: 25
     steps:
@@ -229,12 +284,65 @@ jobs:
           grep -Fq "/v0.8.2/agentrinse-0.8.2.tgz" "$tap_path/Formula/agentrinse.rb"
           grep -Fq "1c30fc4f77d0254aa9ed11cf364299263519a8b44ead17c99ce9f4cdd6296ce9" \
             "$tap_path/Formula/agentrinse.rb"
-          brew upgrade --formula vincentkoc/tap/agentrinse
+          grep -Fq "revision 1" "$tap_path/Formula/agentrinse.rb"
+          snapshot_homebrew() {
+            label="$1"
+            brew_prefix="$(brew --prefix)"
+            cellar="$(brew --cellar)"
+            node_prefix="$(brew --prefix node)"
+            {
+              printf 'node-prefix=%s\n' "$node_prefix"
+              printf 'node-keg=%s\n' "$(/bin/realpath "$node_prefix")"
+              for path in "$node_prefix/bin/node" "$brew_prefix/bin/node"; do
+                printf 'path=%s\n' "$path"
+                stat -f '%d:%i:%u:%g:%Lp:%l:%z:%m:%c' "$path"
+                printf 'realpath=%s\n' "$(/bin/realpath "$path")"
+                shasum -a 256 "$path"
+                readlink "$path" || true
+              done
+              path="$brew_prefix/opt/node"
+              printf 'path=%s\n' "$path"
+              stat -f '%d:%i:%u:%g:%Lp:%l:%z:%m:%c' "$path"
+              printf 'realpath=%s\n' "$(/bin/realpath "$path")"
+              readlink "$path"
+            } > "$RUNNER_TEMP/agentrinse-$label-node.txt"
+            find "$cellar" -mindepth 2 -maxdepth 2 -type d \
+              ! -path "$cellar/agentrinse/*" -print |
+              sed "s#^$cellar/##" |
+              LC_ALL=C sort > "$RUNNER_TEMP/agentrinse-$label-kegs.txt"
+            {
+              for root in bin sbin lib include share opt var/homebrew/linked; do
+                test ! -d "$brew_prefix/$root" ||
+                  find "$brew_prefix/$root" -type l -print
+              done
+            } | LC_ALL=C sort |
+              while IFS= read -r link; do
+                target="$(readlink "$link")"
+                case "$link:$target" in
+                  *agentrinse*) continue ;;
+                esac
+                printf '%s\t%s\n' "${link#"$brew_prefix"/}" "$target"
+              done > "$RUNNER_TEMP/agentrinse-$label-links.txt"
+          }
+
+          snapshot_homebrew before
+          env -u HOMEBREW_NO_INSTALL_UPGRADE \
+            brew install --formula --ignore-dependencies vincentkoc/tap/agentrinse
           new_prefix="$(brew --prefix agentrinse)"
           new_keg="$(/bin/realpath "$new_prefix")"
-          test "${new_keg##*/}" = "0.8.2"
+          test "${new_keg##*/}" = "0.8.2_1"
           test "$new_keg" != "$(cat "$RUNNER_TEMP/agentrinse-historical-old-keg")"
           test "$("$new_prefix/bin/agentrinse" --version)" = "0.8.2"
+          snapshot_homebrew after
+          diff -u \
+            "$RUNNER_TEMP/agentrinse-before-node.txt" \
+            "$RUNNER_TEMP/agentrinse-after-node.txt"
+          diff -u \
+            "$RUNNER_TEMP/agentrinse-before-kegs.txt" \
+            "$RUNNER_TEMP/agentrinse-after-kegs.txt"
+          diff -u \
+            "$RUNNER_TEMP/agentrinse-before-links.txt" \
+            "$RUNNER_TEMP/agentrinse-after-links.txt"
 
           home="$(cat "$RUNNER_TEMP/agentrinse-home-path")"
           state_dir="$(cat "$RUNNER_TEMP/agentrinse-state-path")"
@@ -288,10 +396,12 @@ jobs:
       - name: Tap this checkout
         run: brew tap vincentkoc/tap "$GITHUB_WORKSPACE"
 
-      - name: Install 0.8.2
+      - name: Install 0.8.2_1
         run: |
           brew install --formula vincentkoc/tap/agentrinse
           prefix="$(brew --prefix agentrinse)"
+          keg="$(/bin/realpath "$prefix")"
+          test "${keg##*/}" = "0.8.2_1"
           test "$("$prefix/bin/agentrinse" --version)" = "0.8.2"
 
       - name: Prove stateless provider audit
