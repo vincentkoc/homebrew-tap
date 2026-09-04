@@ -1,0 +1,214 @@
+name: Publish Tokenjuice Formula
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Existing stable Tokenjuice release tag (e.g. v0.8.2)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tokenjuice-publisher-${{ inputs.tag_name }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    if: github.repository == 'vincentkoc/homebrew-tap' && github.ref == 'refs/heads/main'
+    runs-on: macos-15
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    outputs:
+      base_sha: ${{ steps.release.outputs.base_sha }}
+      formula_sha256: ${{ steps.validate.outputs.formula_sha256 }}
+    env:
+      TAG: ${{ inputs.tag_name }}
+      SOURCE_REPO: vincentkoc/tokenjuice
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      HOMEBREW_NO_ANALYTICS: "1"
+    steps:
+      - name: Check release and source version
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          version="${TAG#v}"
+          tarball="tokenjuice-${TAG}.tar.gz"
+          base_url="https://github.com/${SOURCE_REPO}/releases/download/${TAG}"
+          gh api "repos/${SOURCE_REPO}/releases/tags/${TAG}" > "$RUNNER_TEMP/release.json"
+          jq -e --arg tag "$TAG" --arg tarball "$tarball" --arg base_url "$base_url" '
+            . as $release |
+            .tag_name == $tag and .draft == false and .prerelease == false and
+            all(["tokenjuice.rb", $tarball, "sha256sums.txt"][];
+              . as $name |
+              [$release.assets[] | select(.name == $name)] |
+              length == 1 and .[0].state == "uploaded" and
+              .[0].browser_download_url == ($base_url + "/" + $name))
+          ' "$RUNNER_TEMP/release.json"
+          source_sha="$(gh api "repos/${SOURCE_REPO}/commits/${TAG}" --jq .sha)"
+          [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]]
+          gh api "repos/${SOURCE_REPO}/contents/package.json?ref=${source_sha}" \
+            --jq .content | base64 --decode > "$RUNNER_TEMP/package.json"
+          jq -e --arg version "$version" '.version == $version' "$RUNNER_TEMP/package.json"
+          base_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+          [[ "$base_sha" =~ ^[0-9a-f]{40}$ ]]
+          printf 'base_sha=%s\n' "$base_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Download and validate release assets
+        id: validate
+        run: |
+          set -euo pipefail
+          export TARBALL="tokenjuice-${TAG}.tar.gz"
+          export EXPECTED_URL="https://github.com/${SOURCE_REPO}/releases/download/${TAG}/${TARBALL}"
+          mkdir "$RUNNER_TEMP/release-assets"
+          cd "$RUNNER_TEMP/release-assets"
+          for asset in tokenjuice.rb "$TARBALL" sha256sums.txt; do
+            curl --fail --location --silent --show-error --retry 3 \
+              --proto '=https' --proto-redir '=https' \
+              "https://github.com/${SOURCE_REPO}/releases/download/${TAG}/${asset}" \
+              --output "$asset"
+          done
+          ruby <<'RUBY'
+          require "digest"
+          require "ripper"
+
+          tarball = ENV.fetch("TARBALL")
+          lines = File.readlines("sha256sums.txt", chomp: true).select do |line|
+            line.split.last&.delete_prefix("*") == tarball
+          end
+          abort "Expected exactly one tarball checksum" unless lines.length == 1
+          match = /\A([0-9a-f]{64}) [ *]#{Regexp.escape(tarball)}\z/.match(lines.first)
+          abort "Invalid tarball checksum" unless match
+          checksum = match[1]
+          abort "Tarball checksum mismatch" unless Digest::SHA256.file(tarball).hexdigest == checksum
+
+          # Inspect literal metadata without executing the downloaded Ruby.
+          tree = Ripper.sexp(File.read("tokenjuice.rb"))
+          abort "Invalid formula syntax" unless tree
+          klass = tree[1]
+          unless klass.length == 1 && klass[0][0] == :class &&
+                 klass[0][1][0] == :const_ref && klass[0][1][1][1] == "Tokenjuice" &&
+                 klass[0][2][0] == :var_ref && klass[0][2][1][1] == "Formula"
+            abort "Expected a single Tokenjuice formula"
+          end
+          statements = klass[0][3][1]
+          { "url" => ENV.fetch("EXPECTED_URL"), "sha256" => checksum }.each do |name, expected|
+            calls = statements.select { |node| node[0] == :command && node[1][1] == name }
+            abort "Expected exactly one #{name}" unless calls.length == 1
+            args = calls[0][2]
+            literal = args[1]
+            unless args[0] == :args_add_block && args[2] == false && literal.length == 1 &&
+                   literal[0][0] == :string_literal && literal[0][1][0] == :string_content &&
+                   literal[0][1].length == 2 && literal[0][1][1][0] == :@tstring_content &&
+                   literal[0][1][1][1] == expected
+              abort "Unexpected #{name}"
+            end
+          end
+          File.open(ENV.fetch("GITHUB_OUTPUT"), "a") do |output|
+            output.puts "formula_sha256=#{Digest::SHA256.file("tokenjuice.rb").hexdigest}"
+            output.puts "tarball_sha256=#{checksum}"
+          end
+          RUBY
+          ruby -c tokenjuice.rb
+
+      - name: Strict audit and clean install
+        env:
+          FORMULA_SHA256: ${{ steps.validate.outputs.formula_sha256 }}
+          TARBALL_SHA256: ${{ steps.validate.outputs.tarball_sha256 }}
+        run: |
+          set -euo pipefail
+          if brew list --formula --versions tokenjuice >/dev/null 2>&1; then
+            echo "tokenjuice was already installed on the fresh runner" >&2
+            exit 1
+          fi
+          brew tap-new --no-git tokenjuice-validation/tap
+          formula="$(brew --repository tokenjuice-validation/tap)/Formula/tokenjuice.rb"
+          install -m 0644 "$RUNNER_TEMP/release-assets/tokenjuice.rb" "$formula"
+          # Check Homebrew's inferred version without rewriting the release formula.
+          brew info --json=v2 tokenjuice-validation/tap/tokenjuice > "$RUNNER_TEMP/formula.json"
+          jq -e --arg version "${TAG#v}" --arg sha "$TARBALL_SHA256" \
+            --arg url "https://github.com/${SOURCE_REPO}/releases/download/${TAG}/tokenjuice-${TAG}.tar.gz" '
+              .formulae | length == 1 and
+              .[0].versions.stable == $version and
+              .[0].urls.stable.url == $url and .[0].urls.stable.checksum == $sha
+            ' "$RUNNER_TEMP/formula.json"
+          brew audit --strict --online tokenjuice-validation/tap/tokenjuice
+          brew install --formula tokenjuice-validation/tap/tokenjuice
+          prefix="$(brew --prefix tokenjuice-validation/tap/tokenjuice)"
+          test "$("$prefix/bin/tokenjuice" --version)" = "${TAG#v}"
+          brew test tokenjuice-validation/tap/tokenjuice
+          printf '%s  %s\n' "$FORMULA_SHA256" "$formula" | shasum -a 256 --check
+          printf '%s  %s\n' "$FORMULA_SHA256" "$RUNNER_TEMP/release-assets/tokenjuice.rb" |
+            shasum -a 256 --check
+
+      - name: Transfer validated formula
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tokenjuice-formula
+          path: ${{ runner.temp }}/release-assets/tokenjuice.rb
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ inputs.tag_name }}
+      BASE_SHA: ${{ needs.validate.outputs.base_sha }}
+      FORMULA_SHA256: ${{ needs.validate.outputs.formula_sha256 }}
+    steps:
+      - name: Check out frozen target main
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: vincentkoc/homebrew-tap
+          ref: ${{ needs.validate.outputs.base_sha }}
+          persist-credentials: false
+
+      - name: Download validated formula
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: tokenjuice-formula
+          path: ${{ runner.temp }}/validated-formula
+
+      - name: Verify, commit, and push
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$FORMULA_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          test "$(git rev-parse HEAD)" = "$BASE_SHA"
+          test -z "$(git status --porcelain)"
+          formula="$RUNNER_TEMP/validated-formula/tokenjuice.rb"
+          test -f "$formula" && test ! -L "$formula"
+          printf '%s  %s\n' "$FORMULA_SHA256" "$formula" | sha256sum --check
+          current_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+          test "$current_sha" = "$BASE_SHA"
+          # Stage validated bytes without replacing an unchanged formula.
+          blob="$(git hash-object -w --no-filters "$formula")"
+          git update-index --add --cacheinfo "100644,$blob,Formula/tokenjuice.rb"
+          if git diff --cached --quiet; then
+            echo "Formula already matches ${TAG}; verifying remote main"
+          else
+            install -m 0644 "$formula" Formula/tokenjuice.rb
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit -m "fix(tokenjuice): update formula to ${TAG}"
+          fi
+          gh auth setup-git
+          # Always push, even on no-op: reject concurrent main updates without force.
+          git push origin HEAD:refs/heads/main
