@@ -6,6 +6,7 @@ on:
     paths:
       - Formula/agentrinse.rb
       - scripts/agentrinse-stateless-audit-smoke.mjs
+      - scripts/agentrinse-formula-metadata.sh
       - .github/workflows/agentrinse.yml
   push:
     branches:
@@ -13,6 +14,7 @@ on:
     paths:
       - Formula/agentrinse.rb
       - scripts/agentrinse-stateless-audit-smoke.mjs
+      - scripts/agentrinse-formula-metadata.sh
       - .github/workflows/agentrinse.yml
   workflow_dispatch:
 
@@ -54,7 +56,7 @@ jobs:
         run: brew audit --strict --online vincentkoc/tap/agentrinse
 
   clean-install:
-    name: Clean 0.8.2_1 install
+    name: Clean install of the current formula
     runs-on: macos-15
     timeout-minutes: 20
     steps:
@@ -67,10 +69,13 @@ jobs:
       - name: Require Apple silicon
         run: test "$(uname -m)" = "arm64"
 
+      - name: Read formula metadata
+        run: scripts/agentrinse-formula-metadata.sh Formula/agentrinse.rb >> "$GITHUB_ENV"
+
       - name: Tap this checkout
         run: brew tap vincentkoc/tap "$GITHUB_WORKSPACE"
 
-      - name: Install and test 0.8.2_1
+      - name: Install and test the current formula
         run: |
           if brew list --formula --versions agentrinse >/dev/null 2>&1; then
             echo "agentrinse was already installed on the fresh runner" >&2
@@ -121,8 +126,8 @@ jobs:
           brew install --formula --ignore-dependencies vincentkoc/tap/agentrinse
           prefix="$(brew --prefix agentrinse)"
           keg="$(/bin/realpath "$prefix")"
-          test "${keg##*/}" = "0.8.2_1"
-          test "$("$prefix/bin/agentrinse" --version)" = "0.8.2"
+          test "${keg##*/}" = "$AGENTRINSE_KEG"
+          test "$("$prefix/bin/agentrinse" --version)" = "$AGENTRINSE_VERSION"
           snapshot_homebrew after
           diff -u \
             "$RUNNER_TEMP/agentrinse-before-node.txt" \
@@ -136,7 +141,7 @@ jobs:
           brew test vincentkoc/tap/agentrinse
 
   upgrade:
-    name: Upgrade 0.8.1 to 0.8.2_1
+    name: Upgrade 0.8.1 to the current formula
     runs-on: macos-15
     timeout-minutes: 25
     steps:
@@ -153,7 +158,10 @@ jobs:
         run: |
           git show 0ed8c2861e05e2bb09edd47ada985fbd92f948b0:Formula/agentrinse.rb \
             > "$RUNNER_TEMP/agentrinse-0.8.1.rb"
-          cp Formula/agentrinse.rb "$RUNNER_TEMP/agentrinse-0.8.2.rb"
+          cp Formula/agentrinse.rb "$RUNNER_TEMP/agentrinse-current.rb"
+
+      - name: Read formula metadata
+        run: scripts/agentrinse-formula-metadata.sh Formula/agentrinse.rb >> "$GITHUB_ENV"
 
       - name: Tap this checkout
         run: brew tap vincentkoc/tap "$GITHUB_WORKSPACE"
@@ -176,24 +184,23 @@ jobs:
           test "$("$old_prefix/bin/agentrinse" --version)" = "0.8.1"
           printf '%s\n' "$old_keg" > "$RUNNER_TEMP/agentrinse-old-keg"
 
-      - name: Upgrade to exact 0.8.2 and test
+      - name: Upgrade to the current formula and test
         run: |
           tap_path="$(brew --repository vincentkoc/tap)"
-          install -m 0644 "$RUNNER_TEMP/agentrinse-0.8.2.rb" "$tap_path/Formula/agentrinse.rb"
-          grep -Fq "/v0.8.2/agentrinse-0.8.2.tgz" "$tap_path/Formula/agentrinse.rb"
-          grep -Fq "1c30fc4f77d0254aa9ed11cf364299263519a8b44ead17c99ce9f4cdd6296ce9" \
-            "$tap_path/Formula/agentrinse.rb"
-          grep -Fq "revision 1" "$tap_path/Formula/agentrinse.rb"
+          install -m 0644 "$RUNNER_TEMP/agentrinse-current.rb" "$tap_path/Formula/agentrinse.rb"
+          grep -Fq "url \"$AGENTRINSE_URL\"" "$tap_path/Formula/agentrinse.rb"
+          grep -Fq "sha256 \"$AGENTRINSE_SHA256\"" "$tap_path/Formula/agentrinse.rb"
+          test "$(curl -fsSL "$AGENTRINSE_URL" | shasum -a 256 | cut -d ' ' -f 1)" = "$AGENTRINSE_SHA256"
           brew upgrade --formula vincentkoc/tap/agentrinse
           new_prefix="$(brew --prefix agentrinse)"
           new_keg="$(/bin/realpath "$new_prefix")"
-          test "${new_keg##*/}" = "0.8.2_1"
+          test "${new_keg##*/}" = "$AGENTRINSE_KEG"
           test "$new_keg" != "$(cat "$RUNNER_TEMP/agentrinse-old-keg")"
-          test "$("$new_prefix/bin/agentrinse" --version)" = "0.8.2"
+          test "$("$new_prefix/bin/agentrinse" --version)" = "$AGENTRINSE_VERSION"
           brew test vincentkoc/tap/agentrinse
 
   historical-sidecar-upgrade:
-    name: Upgrade 0.6.0 plan sidecar to 0.8.2_1
+    name: Upgrade 0.6.0 plan sidecar to the current formula
     runs-on: macos-15
     timeout-minutes: 25
     steps:
@@ -210,7 +217,10 @@ jobs:
         run: |
           git show c5d01815b1b13344d64b527a5a73d9220c2fbf9f:Formula/agentrinse.rb \
             > "$RUNNER_TEMP/agentrinse-0.6.0.rb"
-          cp Formula/agentrinse.rb "$RUNNER_TEMP/agentrinse-0.8.2.rb"
+          cp Formula/agentrinse.rb "$RUNNER_TEMP/agentrinse-current.rb"
+
+      - name: Read formula metadata
+        run: scripts/agentrinse-formula-metadata.sh Formula/agentrinse.rb >> "$GITHUB_ENV"
 
       - name: Tap this checkout
         run: brew tap vincentkoc/tap "$GITHUB_WORKSPACE"
@@ -280,11 +290,10 @@ jobs:
       - name: Upgrade and validate historical state
         run: |
           tap_path="$(brew --repository vincentkoc/tap)"
-          install -m 0644 "$RUNNER_TEMP/agentrinse-0.8.2.rb" "$tap_path/Formula/agentrinse.rb"
-          grep -Fq "/v0.8.2/agentrinse-0.8.2.tgz" "$tap_path/Formula/agentrinse.rb"
-          grep -Fq "1c30fc4f77d0254aa9ed11cf364299263519a8b44ead17c99ce9f4cdd6296ce9" \
-            "$tap_path/Formula/agentrinse.rb"
-          grep -Fq "revision 1" "$tap_path/Formula/agentrinse.rb"
+          install -m 0644 "$RUNNER_TEMP/agentrinse-current.rb" "$tap_path/Formula/agentrinse.rb"
+          grep -Fq "url \"$AGENTRINSE_URL\"" "$tap_path/Formula/agentrinse.rb"
+          grep -Fq "sha256 \"$AGENTRINSE_SHA256\"" "$tap_path/Formula/agentrinse.rb"
+          test "$(curl -fsSL "$AGENTRINSE_URL" | shasum -a 256 | cut -d ' ' -f 1)" = "$AGENTRINSE_SHA256"
           snapshot_homebrew() {
             label="$1"
             brew_prefix="$(brew --prefix)"
@@ -330,9 +339,9 @@ jobs:
             brew install --formula --ignore-dependencies vincentkoc/tap/agentrinse
           new_prefix="$(brew --prefix agentrinse)"
           new_keg="$(/bin/realpath "$new_prefix")"
-          test "${new_keg##*/}" = "0.8.2_1"
+          test "${new_keg##*/}" = "$AGENTRINSE_KEG"
           test "$new_keg" != "$(cat "$RUNNER_TEMP/agentrinse-historical-old-keg")"
-          test "$("$new_prefix/bin/agentrinse" --version)" = "0.8.2"
+          test "$("$new_prefix/bin/agentrinse" --version)" = "$AGENTRINSE_VERSION"
           snapshot_homebrew after
           diff -u \
             "$RUNNER_TEMP/agentrinse-before-node.txt" \
@@ -354,7 +363,7 @@ jobs:
               --home "$home" \
               --state-dir "$state_dir" \
               --config "$config_path" \
-              --json > "$RUNNER_TEMP/agentrinse-doctor-0.8.2.json"
+              --json > "$RUNNER_TEMP/agentrinse-doctor-current.json"
           )
           node_bin="$(brew --prefix node)/bin/node"
           "$node_bin" -e '
@@ -366,7 +375,7 @@ jobs:
                 throw new Error(id + " compatibility proof failed");
               }
             }
-          ' "$RUNNER_TEMP/agentrinse-doctor-0.8.2.json"
+          ' "$RUNNER_TEMP/agentrinse-doctor-current.json"
           (
             cd "$state_dir"
             find . -type f -print | LC_ALL=C sort |
@@ -393,16 +402,19 @@ jobs:
       - name: Require Apple silicon
         run: test "$(uname -m)" = "arm64"
 
+      - name: Read formula metadata
+        run: scripts/agentrinse-formula-metadata.sh Formula/agentrinse.rb >> "$GITHUB_ENV"
+
       - name: Tap this checkout
         run: brew tap vincentkoc/tap "$GITHUB_WORKSPACE"
 
-      - name: Install 0.8.2_1
+      - name: Install the current formula
         run: |
           brew install --formula vincentkoc/tap/agentrinse
           prefix="$(brew --prefix agentrinse)"
           keg="$(/bin/realpath "$prefix")"
-          test "${keg##*/}" = "0.8.2_1"
-          test "$("$prefix/bin/agentrinse" --version)" = "0.8.2"
+          test "${keg##*/}" = "$AGENTRINSE_KEG"
+          test "$("$prefix/bin/agentrinse" --version)" = "$AGENTRINSE_VERSION"
 
       - name: Prove stateless provider audit
         run: |
