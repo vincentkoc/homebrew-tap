@@ -9,7 +9,6 @@ class Natilius < Formula
   desc "Automated one-click Mac developer environment setup"
   homepage "https://github.com/vincentkoc/natilius"
   url "https://github.com/vincentkoc/natilius/archive/refs/tags/v1.5.3.tar.gz"
-  version "1.5.3"
   sha256 "771da8e547653bbbf3eb55214a42a957c8c160d8d12334599431ef7cb186210d"
   license "GPL-3.0-or-later"
   head "https://github.com/vincentkoc/natilius.git", branch: "main"
@@ -32,8 +31,8 @@ class Natilius < Formula
     zsh_completion.install "completions/natilius-completion.zsh" => "_natilius"
 
     # Install example config
-    (share/"natilius").install ".natiliusrc.example"
-    libexec.install_symlink share/"natilius/.natiliusrc.example"
+    pkgshare.install ".natiliusrc.example"
+    libexec.install_symlink pkgshare/".natiliusrc.example"
 
     # Create wrapper script that sets NATILIUS_HOME
     (bin/"natilius").write <<~EOS
