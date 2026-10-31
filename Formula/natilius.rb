@@ -8,9 +8,9 @@
 class Natilius < Formula
   desc "Automated one-click Mac developer environment setup"
   homepage "https://github.com/vincentkoc/natilius"
-  url "https://github.com/vincentkoc/natilius/archive/refs/tags/v1.4.3.tar.gz"
-  sha256 "b4288c5189189cda0fed1ad6838d79a009514274aa0618659da53c13f18227c9"
-  version "1.4.3"
+  url "https://github.com/vincentkoc/natilius/archive/refs/tags/v1.5.3.tar.gz"
+  version "1.5.3"
+  sha256 "771da8e547653bbbf3eb55214a42a957c8c160d8d12334599431ef7cb186210d"
   license "GPL-3.0-or-later"
   head "https://github.com/vincentkoc/natilius.git", branch: "main"
 
@@ -33,6 +33,7 @@ class Natilius < Formula
 
     # Install example config
     (share/"natilius").install ".natiliusrc.example"
+    libexec.install_symlink share/"natilius/.natiliusrc.example"
 
     # Create wrapper script that sets NATILIUS_HOME
     (bin/"natilius").write <<~EOS
@@ -41,14 +42,6 @@ class Natilius < Formula
       exec "#{libexec}/natilius.sh" "$@"
     EOS
     (bin/"natilius").chmod 0755
-  end
-
-  def post_install
-    user_config = "#{ENV["HOME"]}/.natiliusrc"
-    unless File.exist?(user_config)
-      ohai "Creating default config at ~/.natiliusrc"
-      cp "#{share}/natilius/.natiliusrc.example", user_config
-    end
   end
 
   def caveats
@@ -72,6 +65,6 @@ class Natilius < Formula
   end
 
   test do
-    assert_match "Natilius", shell_output("#{bin}/natilius version")
+    assert_match version.to_s, shell_output("#{bin}/natilius --version")
   end
 end
