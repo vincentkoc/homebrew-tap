@@ -135,6 +135,7 @@ jobs:
           brew tap-new --no-git tokenjuice-validation/tap
           formula="$(brew --repository tokenjuice-validation/tap)/Formula/tokenjuice.rb"
           install -m 0644 "$RUNNER_TEMP/release-assets/tokenjuice.rb" "$formula"
+          brew trust --formula tokenjuice-validation/tap/tokenjuice
           # Check Homebrew's inferred version without rewriting the release formula.
           brew info --json=v2 tokenjuice-validation/tap/tokenjuice > "$RUNNER_TEMP/formula.json"
           jq -e --arg version "${TAG#v}" --arg sha "$TARBALL_SHA256" \
