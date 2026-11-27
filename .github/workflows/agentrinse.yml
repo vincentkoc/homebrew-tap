@@ -53,7 +53,9 @@ jobs:
         run: brew tap vincentkoc/tap "$GITHUB_WORKSPACE"
 
       - name: Audit formula
-        run: brew audit --strict --online vincentkoc/tap/agentrinse
+        run: |
+          brew trust --formula vincentkoc/tap/agentrinse
+          brew audit --strict --online vincentkoc/tap/agentrinse
 
   clean-install:
     name: Clean install of the current formula
